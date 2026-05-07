@@ -1,4 +1,4 @@
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const app = express();
 var cors = require("cors");
@@ -39,16 +39,32 @@ async function run() {
       if (email) {
         query["sender-email"] = email;
       }
-      //
 
-      const allParcels = await parcelCollection.find(query).toArray();
+      const options = { sort: { createdAt: -1 } };
+
+      const allParcels = await parcelCollection.find(query, options).toArray();
       res.send(allParcels);
     });
 
     // parcel create api
     app.post("/parcels", async (req, res) => {
       const parcel = req.body;
+      // parcel created time
+      parcel.createdAt = new Date();
       const result = await parcelCollection.insertOne(parcel);
+      res.send(result);
+    });
+
+    // parcel delete api
+    app.delete("/parcel/:id", async (req, res) => {
+      const id = req.params.id;
+
+      const query = { _id: new ObjectId(id) };
+      if (query.email) {
+        query["sender-email"] = req.query.email;
+      }
+
+      const result = await parcelCollection.deleteOne(query);
       res.send(result);
     });
 
