@@ -10,10 +10,10 @@ const stripe = require("stripe")(process.env.STRIPE_SECRECT);
 const crypto = require("crypto");
 
 const generateTrackingId = () => {
-  // random hex string তৈরি করবে
+  // random hex string
   const randomPart = crypto.randomBytes(4).toString("hex").toUpperCase();
 
-  // current timestamp এর শেষ 6 digit
+  // current timestamp
   const timestamp = Date.now().toString().slice(-6);
 
   return `TRK-${timestamp}-${randomPart}`;
@@ -126,11 +126,24 @@ async function run() {
     app.patch("/payment-success", async (req, res) => {
       const sessionId = req.query.session_id;
       const session = await stripe.checkout.sessions.retrieve(sessionId);
-      console.log(session);
-      const trackingId = generateTrackingId();
+      // console.log(session);
+      const transactionId = session.payment_intent;
+      const query = { transactionId };
+
+      const paymentExists = await paymentCollection.findOne(query);
+      console.log(paymentExists);
+      if (paymentExists) {
+        return res.send({
+          message: "already exists",
+          transactionId: transactionId,
+          trackingId: paymentExists.trackingId,
+        });
+      }
+
       if (session.payment_status === "paid") {
         const id = session.metadata.parcelId;
         const query = { _id: new ObjectId(id) };
+        const trackingId = generateTrackingId();
         const update = {
           $set: {
             paymentStatus: "paid",
@@ -149,6 +162,7 @@ async function run() {
           transactionId: session.payment_intent,
           paymentStatus: session.payment_status,
           paidAt: new Date(),
+          trackingId: trackingId,
         };
 
         if (session.payment_status === "paid") {
@@ -162,6 +176,19 @@ async function run() {
           });
         }
       }
+    });
+
+    // all payment get for a user
+    app.get("/payments", async (req, res) => {
+      const email = req.query.email;
+      const query = {};
+
+      if (email) {
+        query.customerEmail = email;
+      }
+
+      const result = await paymentCollection.find(query).toArray();
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
