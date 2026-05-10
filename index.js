@@ -9,6 +9,15 @@ dns.setServers(["1.1.1.1", "8.8.8.8"]);
 const stripe = require("stripe")(process.env.STRIPE_SECRECT);
 const crypto = require("crypto");
 
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./zapshift-admin-sdk.json");
+const { getAuth } = require("firebase-admin/auth");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
 const generateTrackingId = () => {
   // random hex string
   const randomPart = crypto.randomBytes(4).toString("hex").toUpperCase();
@@ -22,6 +31,26 @@ const generateTrackingId = () => {
 // middleware
 app.use(cors());
 app.use(express.json());
+
+const verityFBToken = (req, res, next) => {
+  const token = req.headers.authorization;
+  const idToken = token.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).send({ message: "unauthorized user" });
+  }
+
+  getAuth()
+    .verifyIdToken(idToken)
+    .then((decodeToken) => {
+      console.log(decodeToken);
+      req.decodedEmail = decodeToken.email;
+      next();
+    })
+    .catch((err) => {
+      return res.status(401).send({ message: "unauthorized access" });
+    });
+};
 
 app.get("/", (req, res) => {
   res.send("Zap shift is running on");
@@ -179,12 +208,18 @@ async function run() {
     });
 
     // all payment get for a user
-    app.get("/payments", async (req, res) => {
+    app.get("/payments", verityFBToken, async (req, res) => {
       const email = req.query.email;
       const query = {};
 
+      // console.log("headers", req.headers);
+
       if (email) {
         query.customerEmail = email;
+        // check email address
+        if (email != req.decodedEmail) {
+          return res.status(403).send({ message: "forbidden access" });
+        }
       }
 
       const result = await paymentCollection.find(query).toArray();
