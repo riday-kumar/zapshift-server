@@ -248,6 +248,56 @@ async function run() {
       res.send(result);
     });
 
+    // rider related apis
+    app.get("/riders", async (req, res) => {
+      const query = {};
+      if (req.query.status) {
+        query.status = req.query.status;
+      }
+      const cursor = riderCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.post("/riders", async (req, res) => {
+      const rider = req.body;
+      rider.status = "pending";
+      rider.createdAt = new Date();
+
+      const result = await riderCollection.insertOne(rider);
+      res.send(result);
+    });
+
+    app.patch("/riders/:id", verityFBToken, async (req, res) => {
+      const status = req.body.status;
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+
+      const updatedDoc = {
+        $set: {
+          status: status,
+        },
+      };
+
+      const result = riderCollection.updateOne(query, updatedDoc);
+
+      if (status === "accept") {
+        const filter = {
+          email: req.query.email,
+        };
+
+        const updateUser = {
+          $set: {
+            role: "rider",
+          },
+        };
+
+        const userResult = await userCollection.updateOne(filter, updateUser);
+      }
+
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(" successfully connected to MongoDB!");
