@@ -70,8 +70,27 @@ async function run() {
     await client.connect();
 
     const db = client.db("zap_shift_db");
+    const userCollection = db.collection("users");
     const parcelCollection = db.collection("parcels");
     const paymentCollection = db.collection("payments");
+    const riderCollection = db.collection("riders");
+
+    // users related apis
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      user.role = "user";
+      user.createdAt = new Date();
+
+      const email = user.email;
+      const userExists = await userCollection.findOne({ email });
+
+      if (userExists) {
+        return res.send({ message: "user already exists" });
+      }
+
+      const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
 
     // parcel getting api
     app.get("/parcels", async (req, res) => {
@@ -222,7 +241,10 @@ async function run() {
         }
       }
 
-      const result = await paymentCollection.find(query).toArray();
+      const result = await paymentCollection
+        .find(query)
+        .sort({ paidAt: -1 })
+        .toArray();
       res.send(result);
     });
 
