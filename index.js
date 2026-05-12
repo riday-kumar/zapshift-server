@@ -76,6 +76,17 @@ async function run() {
     const riderCollection = db.collection("riders");
 
     // users related apis
+    app.get("/users", verityFBToken, async (req, res) => {
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.email = email;
+      }
+      const cluster = userCollection.find(query);
+      const result = await cluster.toArray();
+      res.send(result);
+    });
+
     app.post("/users", async (req, res) => {
       const user = req.body;
       user.role = "user";
